@@ -11,7 +11,7 @@ import random
 os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
 print(torch.cuda.is_available())
 
-d=3
+d=3 # 曲线的度d
 num=100 #生成数据的规模，论文用1e6，我用100跑个小规模
 dataset=[]
 num_epochs = 30  # 迭代次数
