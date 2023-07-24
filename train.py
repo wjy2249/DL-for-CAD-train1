@@ -13,10 +13,10 @@ os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
 print(torch.cuda.is_available())
 
 d=3 # 曲线的度d
-num=100 #生成数据的规模，论文用1e6，我用100跑个小规模
+num=1000 #生成数据的规模，论文用1e6，我用1000跑个小规模
 dataset=[]
 trainpoint=[]
-num_epochs = 3  # 迭代次数
+num_epochs = 100  # 迭代次数
 batch_size = 4  # 批量大小
 
 for cnt in range(0,num):
@@ -63,6 +63,8 @@ for cnt in range(0,num):
 
 print("\n\n")
 print(trainpoint)
+
+
 print("\n\n")
 print(dataset)
 
@@ -109,14 +111,14 @@ labels=torch.tensor(trainpoint,dtype=torch.float32).to(device)
 
 total_step = len(edges) // batch_size
 print(edges.shape)
-print(labels.shape)
+print("labels.shape",labels.shape)
 
 matrix = torch.eye(2*d+1)
 for i in range(1,2*d):
     matrix[i][i]=-1.0
-print(matrix)
+#print(matrix)
 repeated_matrix = matrix.unsqueeze(0).expand(num, -1, -1)
-print(repeated_matrix.shape)
+#print(repeated_matrix.shape)
 b=torch.zeros(2*d+1)
 b[2*d]=1
 
@@ -130,8 +132,8 @@ for epoch in range(num_epochs):
 
         # 前向传播
         outputs = model(batch_edges).to(device)
-        print(co_matrix.shape,outputs.shape)
-        print(outputs)
+     #   print(co_matrix.shape,outputs.shape)
+      #  print(outputs)
         for time in range(0,batch_size):
             for j in range(1,2*d):
            # print(co_matrix[:batch_size,j,j-1],outputs[:batch_size,2*j-2])
@@ -139,23 +141,34 @@ for epoch in range(num_epochs):
                 co_matrix[time,j,j+1]=outputs[time,2*j-1]
 
             solve_t=torch.linalg.solve(co_matrix[time],b)
-            print(solve_t)
+           # print(solve_t)
             solve_p=[]
             for j in range(0,2*d+1):
                 ppx,ppy=bezier_point(c,solve_t[j])
                 pp=[ppx,ppy]
                 solve_p.append(pp)
-            all_p.append(solve_p)
-        print(co_matrix) #打印下系数矩阵
-        print("all_p:",all_p) #打印下参数化的点对应的坐标
+            tensor_p=torch.tensor(solve_p)
+           # print("tensorp",tensor_p)
+            all_p.append(tensor_p)
+
+      #  print(co_matrix) #打印下系数矩阵
+        prediction=all_p[0]
+        prediction=prediction.unsqueeze(dim=0)
+        prediction=prediction.repeat(batch_size,1,1).to(device)
+        for time in range(1,batch_size):
+            temp=all_p[time]
+            prediction[time]=temp
+      #  print("prediction",prediction,prediction.shape) #打印下参数化的点对应的坐标
 
        # loss = criterion(outputs, batch_labels,d)
         # 反向传播和优化
-        loss=criterion(all_p,trainpoint[i:i+batch_size],d)
+       # print("train is beginning:",prediction.shape,labels.shape)
+        loss=criterion(prediction,labels[i:i+batch_size],d,batch_size)
+        loss.requires_grad_(True)
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
 
         # 打印训练信息
-        if (i + 1) % 10 == 0:
-            print(f'Epoch [{epoch + 1}/{num_epochs}], Step [{i + 1}/{len(edges)}], Loss: {loss.item():.4f}')
+        if (epoch + 1) % 10 == 0:
+            print(f'Epoch [{i + 1}/{num_epochs}], Step [{i + 1}/{len(edges)}], Loss: {loss.item():.4f}')
