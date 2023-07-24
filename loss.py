@@ -1,4 +1,5 @@
 import numpy as np
+import torch
 from torch import nn
 
 
@@ -43,10 +44,11 @@ class Loss(nn.Module):
     def __init__(self):
         super(Loss, self).__init__()
 
-    def forward(self, predictions, targets,d):
+    def forward(self, predictions, targets,d,batch_size):
         sum=0
-        for i in predictions:
-            x=predictions[i][0]-targets[i][0]
-            y=predictions[i][1]-targets[i][1]
-            sum=sum+x*x+y*y
-        return sum/(2*d+1)
+        for i in range(0,batch_size):
+            for j in range(0,2*d+1):
+                x=(predictions[i][j][0])-(targets[i][j][0])
+                y=(predictions[i][j][1])-(targets[i][j][1])
+                sum=sum+x*x+y*y
+        return sum/(2*d+1)/batch_size
