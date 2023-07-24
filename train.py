@@ -13,20 +13,22 @@ os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
 print(torch.cuda.is_available())
 
 d=3 # 曲线的度d
-num=1000 #生成数据的规模，论文用1e6，我用1000跑个小规模
+num=100 #生成数据的规模，论文用1e6，我用1000跑个小规模
 dataset=[]
 trainpoint=[]
-num_epochs = 100  # 迭代次数
+num_epochs = 30  # 迭代次数
 batch_size = 4  # 批量大小
+control_c=[]
 
 for cnt in range(0,num):
     c = np.random.standard_normal(size=(d + 1, 2))
-    print(c) # d+1个控制点
+    control_c.append(c)
+    print("c",c) # d+1个控制点
     random_numbers = [random.random() for _ in range(2*d-1)]
     random_numbers.append(0.0)
     random_numbers.append(1.0)
     t=sorted(random_numbers)
-    print(t) # 2d+1个曲线上的随机采样点的参数值
+   # print(t) # 2d+1个曲线上的随机采样点的参数值
     P = []
     P2 = []
     edge = []
@@ -34,12 +36,12 @@ for cnt in range(0,num):
     for i in range(0,2*d+1):
         x,y=bezier_point(c,t[i])
         P.append([x,y])
-    print(P) # 2d+1个参数值对应的坐标
+  #  print(P) # 2d+1个参数值对应的坐标
 
-    pxmin=P[0][0]
-    pymin=P[0][0]
-    pxmax=P[0][0]
-    pymax=P[0][0]
+    pxmin=min(P[0][0],P[0][1])
+    pymin=min(P[0][0],P[0][1])
+    pxmax=max(P[0][0],P[0][1])
+    pymax=max(P[0][0],P[0][1])
     for i in range(1,2*d+1):
         pxmin=min(pxmin,P[i][0])
         pymin=min(pymin,P[i][1])
@@ -52,13 +54,14 @@ for cnt in range(0,num):
     for i in range(0,2*d+1):
         x=(P[i][0]-pxmin)/(Pmax-Pmin)
         y=(P[i][1]-pymin)/(Pmax-Pmin)
+        #print("P[i][0]",P[i][0],pxmin,Pmax-Pmin,P[i][1],pymin)
         P2.append([x,y])
-    print(P2)
+   # print(P2)
     trainpoint.append(P2)
 
     for i in range(1,2*d+1):
         edge.append([P2[i][0]-P2[i-1][0],P2[i][1]-P2[i-1][1]])
-    print(edge)
+  #  print(edge)
     dataset.append(edge)
 
 print("\n\n")
@@ -133,18 +136,24 @@ for epoch in range(num_epochs):
         # 前向传播
         outputs = model(batch_edges).to(device)
      #   print(co_matrix.shape,outputs.shape)
-      #  print(outputs)
+        print("outputs",outputs)
+        for time in range(0, batch_size):
+            for j in range(1,4*d-2,2):
+                outputs[time][j]=1-outputs[time][j-1]
+
+        print("outputs2",outputs)
+
         for time in range(0,batch_size):
             for j in range(1,2*d):
            # print(co_matrix[:batch_size,j,j-1],outputs[:batch_size,2*j-2])
                 co_matrix[time,j,j-1]=outputs[time,2*j-2]
                 co_matrix[time,j,j+1]=outputs[time,2*j-1]
-
+            print("co_matrix",co_matrix[time])
             solve_t=torch.linalg.solve(co_matrix[time],b)
-           # print(solve_t)
+            print(solve_t)
             solve_p=[]
             for j in range(0,2*d+1):
-                ppx,ppy=bezier_point(c,solve_t[j])
+                ppx,ppy=bezier_point(control_c[i+time],solve_t[j])
                 pp=[ppx,ppy]
                 solve_p.append(pp)
             tensor_p=torch.tensor(solve_p)
@@ -160,9 +169,8 @@ for epoch in range(num_epochs):
             prediction[time]=temp
       #  print("prediction",prediction,prediction.shape) #打印下参数化的点对应的坐标
 
-       # loss = criterion(outputs, batch_labels,d)
-        # 反向传播和优化
-       # print("train is beginning:",prediction.shape,labels.shape)
+        #反向传播和优化
+      # print("train is beginning:",prediction,labels)
         loss=criterion(prediction,labels[i:i+batch_size],d,batch_size)
         loss.requires_grad_(True)
         optimizer.zero_grad()
